@@ -15,6 +15,10 @@
     "show-profile-desc": "Display the active profile icon inside the capsule",
     "widget-settings": "Widget settings",
     "show-balanced": "Show balanced profile",
-    "show-balanced-desc": "Display the profile icon even when set to balanced (only valid if profile display is enabled)"
+    "show-balanced-desc": "Display the profile icon even when set to balanced (only valid if profile display is enabled)",
+    "color-powersaver": "Power saver color",
+    "color-powersaver-desc": "Choose the capsule background color when the profile is set to Power saver",
+    "color-performance": "Performance color",
+    "color-performance-desc": "Choose the capsule background color when the profile is set to Performance"
   }
 }

@@ -22,11 +22,6 @@ Item {
     readonly property real barFontSize: Style.getBarFontSizeForScreen(root.screenName)
     readonly property string fixedFont: Settings.data?.ui?.fontFixed ?? "monospace"
 
-    //Power Profiles color
-    readonly property color colorPowerSaver: Color.mSecondary
-    readonly property color colorPerformance: Color.mError
-
-
     property color profileBackgroundColor: {
         if (mouseArea.containsMouse) {
             return Color.mHover;
@@ -73,6 +68,16 @@ Item {
         pluginApi?.pluginSettings?.colorizeByProfile ??
         pluginApi?.manifest?.metadata?.defaultSettings?.colorizeByProfile ??
         true
+
+    property string colorPowerSaver:
+        pluginApi?.pluginSettings?.colorPowerSaver ??
+        pluginApi?.manifest?.metadata?.defaultSettings?.colorPowerSaver ??
+        Color.mSecondary
+
+    property string colorPerformance:
+        pluginApi?.pluginSettings?.colorPerformance ??
+        pluginApi?.manifest?.metadata?.defaultSettings?.colorPerformance ??
+        Color.mError
 
     property bool showProfile:
         pluginApi?.pluginSettings?.showProfile ??

@@ -25,7 +25,9 @@
     "defaultSettings": {
       "colorizeByProfile": true,
       "showProfile": true,
-      "showBalancedIcon": false
+      "showBalancedIcon": false,
+      "colorPowerSaver": null,
+      "colorPerformance": null
     }
   }
 }

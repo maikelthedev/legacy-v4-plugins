@@ -15,6 +15,10 @@
     "show-profile-desc": "Visualizza l'icona del profilo impostato nella capsula",
     "widget-settings": "Impostazioni del widget",
     "show-balanced": "Mostra profilo bilanciato",
-    "show-balanced-desc": "Visualizza l'icona del profilo anche quando è impostato su bilanciato (valido solo se la visualizzazione dei profili è attiva)"
+    "show-balanced-desc": "Visualizza l'icona del profilo anche quando è impostato su bilanciato (valido solo se la visualizzazione dei profili è attiva)",
+    "color-powersaver": "Colore profilo Risparmio energetico",
+    "color-powersaver-desc": "Scegli il colore di sfondo della capsula quando il profilo è impostato su Risparmio energetico",
+    "color-performance": "Colore profilo Prestazioni",
+    "color-performance-desc": "Scegli il colore di sfondo della capsula quando il profilo è impostato su Prestazioni"
   }
 }
