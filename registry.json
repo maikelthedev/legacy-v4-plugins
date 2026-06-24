@@ -1244,7 +1244,7 @@
     {
       "id": "niri-screensaver",
       "name": "Niri Screensaver",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "official": false,
       "author": "jfreed-dev",
       "description": "Idle-aware terminal screensaver for niri, driven by TerminalTextEffects.",
@@ -1256,7 +1256,7 @@
         "Utility",
         "Niri"
       ],
-      "lastUpdated": "2026-06-03T19:56:49-04:00"
+      "lastUpdated": "2026-06-19T10:33:07-04:00"
     },
     {
       "id": "niri-urgent-on-notification",
