@@ -19,6 +19,9 @@ ColumnLayout {
   property color valueMediumPriorityColor: (pluginApi?.pluginSettings?.priorityColors?.medium) || (pluginApi?.manifest?.metadata?.defaultSettings?.priorityColors?.medium) || Color.mPrimary.toString()
   property color valueLowPriorityColor: (pluginApi?.pluginSettings?.priorityColors?.low) || (pluginApi?.manifest?.metadata?.defaultSettings?.priorityColors?.low) || Color.mOnSurfaceVariant.toString()
 
+  // Server sync property
+  property string valueServerUrl: pluginApi?.pluginSettings?.serverUrl !== undefined ? pluginApi?.pluginSettings?.serverUrl : pluginApi?.manifest?.metadata?.defaultSettings?.serverUrl || ""
+
   // Export path property
   property string valueExportPath: pluginApi?.pluginSettings?.exportPath !== undefined ? pluginApi?.pluginSettings?.exportPath : pluginApi?.manifest?.metadata?.defaultSettings?.exportPath
   property string valueExportFormat: pluginApi?.pluginSettings?.exportFormat !== undefined ? pluginApi?.pluginSettings?.exportFormat : pluginApi?.manifest?.metadata?.defaultSettings?.exportFormat
@@ -51,6 +54,23 @@ ColumnLayout {
     onToggled: function (checked) {
       root.valueShowBackground = checked;
     }
+  }
+
+  // ---- Server Sync ----
+  NText {
+    text: pluginApi?.tr("settings.sync.label")
+    font.pointSize: Style.fontSizeL
+    font.weight: Font.Bold
+    Layout.topMargin: Style.marginL
+  }
+
+  NTextInput {
+    Layout.fillWidth: true
+    label: pluginApi?.tr("settings.sync.server_url.label")
+    description: pluginApi?.tr("settings.sync.server_url.description")
+    placeholderText: "http://192.168.x.x:3456"
+    text: root.valueServerUrl
+    onTextChanged: root.valueServerUrl = text
   }
 
   // Toggle for custom priority colors
@@ -538,6 +558,7 @@ ColumnLayout {
     pluginApi.pluginSettings.showCompleted = root.valueShowCompleted;
     pluginApi.pluginSettings.showBackground = root.valueShowBackground;
     pluginApi.pluginSettings.useCustomColors = root.valueUseCustomColors;
+    pluginApi.pluginSettings.serverUrl = root.valueServerUrl;
 
     // Only save custom colors if the option is enabled
     if (root.valueUseCustomColors) {

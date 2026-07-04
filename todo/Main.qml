@@ -5,10 +5,36 @@ import qs.Commons
 import qs.Services.UI
 
 Item {
+  id: root
   property var pluginApi: null
   property var rawTodos: []
   property var rawPages: []
   property string currentExportPath: ""
+
+  // ---- Server sync ----
+  property string serverUrl: pluginApi?.pluginSettings?.serverUrl ?? pluginApi?.manifest?.metadata?.defaultSettings?.serverUrl ?? ""
+  readonly property bool syncEnabled: serverUrl.length > 0
+  property bool loadingFromServer: false
+  property bool serverReachable: false
+
+  // Tiny fetch wrapper — async, fire-and-forget
+  function api(method, path, body, cb) {
+    if (!root.syncEnabled) { if (cb) cb("server not configured"); return; }
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, root.serverUrl + path);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          var data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+          if (cb) cb(null, data);
+        } else {
+          if (cb) cb(xhr.status + ": " + xhr.statusText);
+        }
+      }
+    };
+    xhr.send(body ? JSON.stringify(body) : null);
+  }
 
   // Process for exporting todos
   Process {
@@ -75,29 +101,84 @@ Item {
         };
       }
 
-      // Always create copies to avoid reference issues
-      // Panel.qml may reassign pluginApi.pluginSettings.todos
-      rawTodos = pluginApi.pluginSettings.todos.slice();
-      rawPages = pluginApi.pluginSettings.pages.slice();
-
-      // Data migration: add missing fields to existing todos
-      for (var i = 0; i < rawTodos.length; i++) {
-        if (rawTodos[i].pageId === undefined)
-          rawTodos[i].pageId = 0;
-        if (rawTodos[i].priority === undefined || !["high", "medium", "low"].includes(rawTodos[i].priority)) {
-          rawTodos[i].priority = "medium";
-        }
-        if (rawTodos[i].details === undefined)
-          rawTodos[i].details = "";
+      // ---- Try loading from sync server first ----
+      if (root.syncEnabled) {
+        root.loadingFromServer = true;
+        root.api("GET", "/api/export", null, function(err, data) {
+          root.loadingFromServer = false;
+          if (!err && data && data.todos && data.pages) {
+            root.serverReachable = true;
+            // Map server IDs (String) to Number (plugin uses Number IDs)
+            for (var i = 0; i < data.todos.length; i++) {
+              data.todos[i].id = Number(data.todos[i].id);
+              data.todos[i].pageId = Number(data.todos[i].pageId);
+            }
+            for (var i = 0; i < data.pages.length; i++) {
+              data.pages[i].id = Number(data.pages[i].id);
+            }
+            rawTodos = data.todos;
+            rawPages = data.pages;
+            // Sync server data back to pluginSettings as local cache
+            pluginApi.pluginSettings.todos = rawTodos.slice();
+            pluginApi.pluginSettings.pages = rawPages.slice();
+            pluginApi.pluginSettings.count = rawTodos.length;
+            pluginApi.pluginSettings.completedCount = rawTodos.filter(t => t.completed).length;
+            pluginApi.saveSettings();
+            Logger.i("Todo", "Loaded " + rawTodos.length + " todos from sync server");
+            return;
+          }
+          // Fall through to local cache if server unreachable
+          Logger.w("Todo", "Sync server unreachable, using local cache");
+          loadFromLocalCache();
+        });
+      } else {
+        loadFromLocalCache();
       }
-
-      pluginApi.saveSettings();
     }
+  }
+
+  // Load from local pluginSettings cache
+  function loadFromLocalCache() {
+    if (!pluginApi) return;
+    rawTodos = pluginApi.pluginSettings.todos.slice();
+    rawPages = pluginApi.pluginSettings.pages.slice();
+
+    // Data migration: add missing fields to existing todos
+    for (var i = 0; i < rawTodos.length; i++) {
+      if (rawTodos[i].pageId === undefined)
+        rawTodos[i].pageId = 0;
+      if (rawTodos[i].priority === undefined || !["high", "medium", "low"].includes(rawTodos[i].priority)) {
+        rawTodos[i].priority = "medium";
+      }
+      if (rawTodos[i].details === undefined)
+        rawTodos[i].details = "";
+    }
+    pluginApi.saveSettings();
   }
 
   // ============================================
   // Persistence Functions
   // ============================================
+
+  // Debounce timer — batches rapid changes into one sync call
+  Timer {
+    id: syncDebounce
+    interval: 500
+    repeat: false
+    onTriggered: {
+      pushTodosToServer();
+      pushPagesToServer();
+    }
+  }
+
+  // Background poll timer — pull changes from server every 5s
+  Timer {
+    id: syncPoll
+    interval: 5000
+    repeat: true
+    running: root.syncEnabled && root.serverReachable
+    onTriggered: pullFromServer()
+  }
 
   function saveTodos() {
     if (!pluginApi || !pluginApi.pluginSettings)
@@ -106,6 +187,7 @@ Item {
     pluginApi.pluginSettings.count = rawTodos.length;
     pluginApi.pluginSettings.completedCount = rawTodos.filter(t => t.completed).length;
     pluginApi.saveSettings();
+    if (root.syncEnabled) syncDebounce.restart();
   }
 
   function savePages() {
@@ -113,6 +195,73 @@ Item {
       return;
     pluginApi.pluginSettings.pages = rawPages.slice();
     pluginApi.saveSettings();
+    if (root.syncEnabled) syncDebounce.restart();
+  }
+
+  // ---- Server sync helpers ----
+
+  // Push the full todo list to the server via batch delete+insert.
+  // Simpler than per-op sync for v1 (avoids tracking which ops are new).
+  function pushTodosToServer() {
+    if (!root.syncEnabled || !root.serverReachable) return;
+    var payload = rawTodos.map(function(t) {
+      return {
+        id: String(t.id),
+        text: t.text,
+        completed: t.completed,
+        createdAt: t.createdAt,
+        lastModified: t.lastModified || t.createdAt,
+        pageId: t.pageId,
+        priority: t.priority,
+        details: t.details || ""
+      };
+    });
+    api("POST", "/api/todos/batch", { todos: payload }, function(err) {
+      if (err) Logger.w("Todo", "Failed to sync todos to server: " + err);
+    });
+  }
+
+  function pushPagesToServer() {
+    if (!root.syncEnabled || !root.serverReachable) return;
+    api("POST", "/api/pages/batch", { pages: rawPages }, function(err) {
+      if (err) Logger.w("Todo", "Failed to sync pages to server: " + err);
+    });
+  }
+
+  // Pull full state from server and replace local state
+  function pullFromServer() {
+    if (!root.syncEnabled) return;
+    api("GET", "/api/export", null, function(err, data) {
+      if (err || !data) {
+        root.serverReachable = false;
+        return;
+      }
+      root.serverReachable = true;
+
+      // Only replace if server data is different from local
+      // (avoids unnecessary UI flicker from saveTodos → syncPoll loop)
+      var serverTodos = data.todos.map(function(t) {
+        t.id = Number(t.id);
+        t.pageId = Number(t.pageId);
+        return t;
+      });
+      var serverPages = data.pages;
+
+      // Compare by serialising — skip if identical
+      var localTodosJson = JSON.stringify(rawTodos);
+      var serverTodosJson = JSON.stringify(serverTodos);
+      if (localTodosJson === serverTodosJson)
+        return;
+
+      Logger.i("Todo", "Server state differs, pulling changes");
+      rawTodos = serverTodos;
+      rawPages = serverPages;
+      pluginApi.pluginSettings.todos = rawTodos.slice();
+      pluginApi.pluginSettings.pages = rawPages.slice();
+      pluginApi.pluginSettings.count = rawTodos.length;
+      pluginApi.pluginSettings.completedCount = rawTodos.filter(t => t.completed).length;
+      pluginApi.saveSettings();
+    });
   }
 
   // ============================================

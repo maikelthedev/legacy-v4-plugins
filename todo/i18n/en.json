@@ -97,6 +97,13 @@
       "label": "Use Custom Priority Colors",
       "description": "Enable to customize priority colors"
     },
+    "sync": {
+      "label": "Multi-machine Sync",
+      "server_url": {
+        "label": "Sync Server URL",
+        "description": "Address of the todo-sync server (e.g. http://10.147.x.x:3456). Leave empty for offline-only."
+      }
+    },
     "export_path": {
       "label": "Export Path",
       "description": "Directory for exported todo files",

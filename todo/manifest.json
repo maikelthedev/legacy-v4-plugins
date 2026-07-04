@@ -1,7 +1,7 @@
 {
   "id": "todo",
   "name": "Todo List",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "minNoctaliaVersion": "3.7.1",
   "author": "lonerOrz <lonerOrz@qq.com>",
   "license": "MIT",
@@ -40,6 +40,7 @@
         "medium": "#2196f3",
         "low": "#9e9e9e"
       },
+      "serverUrl": "",
       "exportPath": "~/Documents",
       "exportFormat": "markdown",
       "exportEmptySections": false
