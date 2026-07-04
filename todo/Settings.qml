@@ -580,6 +580,11 @@ ColumnLayout {
 
     pluginApi.saveSettings();
 
+    // If server URL changed, trigger a reconnect
+    if (mainInstance && root.valueServerUrl.length > 0) {
+      mainInstance.connectToServer();
+    }
+
     Logger.i("Todo", "Settings saved successfully");
     return;
   }

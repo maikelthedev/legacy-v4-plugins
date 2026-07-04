@@ -101,40 +101,47 @@ Item {
         };
       }
 
-      // ---- Try loading from sync server first ----
-      if (root.syncEnabled) {
-        root.loadingFromServer = true;
-        root.api("GET", "/api/export", null, function(err, data) {
-          root.loadingFromServer = false;
-          if (!err && data && data.todos && data.pages) {
-            root.serverReachable = true;
-            // Map server IDs (String) to Number (plugin uses Number IDs)
-            for (var i = 0; i < data.todos.length; i++) {
-              data.todos[i].id = Number(data.todos[i].id);
-              data.todos[i].pageId = Number(data.todos[i].pageId);
-            }
-            for (var i = 0; i < data.pages.length; i++) {
-              data.pages[i].id = Number(data.pages[i].id);
-            }
-            rawTodos = data.todos;
-            rawPages = data.pages;
-            // Sync server data back to pluginSettings as local cache
-            pluginApi.pluginSettings.todos = rawTodos.slice();
-            pluginApi.pluginSettings.pages = rawPages.slice();
-            pluginApi.pluginSettings.count = rawTodos.length;
-            pluginApi.pluginSettings.completedCount = rawTodos.filter(t => t.completed).length;
-            pluginApi.saveSettings();
-            Logger.i("Todo", "Loaded " + rawTodos.length + " todos from sync server");
-            return;
-          }
-          // Fall through to local cache if server unreachable
-          Logger.w("Todo", "Sync server unreachable, using local cache");
-          loadFromLocalCache();
-        });
-      } else {
-        loadFromLocalCache();
-      }
+      // ---- Try loading from sync server first -------
+      root.connectToServer();
     }
+  }
+
+  /** Try to connect and sync from the server. Also starts polling. */
+  function connectToServer() {
+    if (!root.syncEnabled) {
+      root.loadingFromServer = false;
+      loadFromLocalCache();
+      return;
+    }
+    root.loadingFromServer = true;
+    root.api("GET", "/api/export", null, function(err, data) {
+      root.loadingFromServer = false;
+      if (!err && data && data.todos && data.pages) {
+        root.serverReachable = true;
+        // Map server IDs (String) to Number (plugin uses Number IDs)
+        for (var i = 0; i < data.todos.length; i++) {
+          data.todos[i].id = Number(data.todos[i].id);
+          data.todos[i].pageId = Number(data.todos[i].pageId);
+        }
+        for (var i = 0; i < data.pages.length; i++) {
+          data.pages[i].id = Number(data.pages[i].id);
+        }
+        rawTodos = data.todos;
+        rawPages = data.pages;
+        // Sync server data back to pluginSettings as local cache
+        pluginApi.pluginSettings.todos = rawTodos.slice();
+        pluginApi.pluginSettings.pages = rawPages.slice();
+        pluginApi.pluginSettings.count = rawTodos.length;
+        pluginApi.pluginSettings.completedCount = rawTodos.filter(t => t.completed).length;
+        pluginApi.saveSettings();
+        Logger.i("Todo", "Loaded " + rawTodos.length + " todos from sync server");
+        return;
+      }
+      // Fall through to local cache if server unreachable
+      Logger.w("Todo", "Sync server unreachable, using local cache");
+      root.serverReachable = false;
+      loadFromLocalCache();
+    });
   }
 
   // Load from local pluginSettings cache
@@ -429,6 +436,15 @@ Item {
       } else {
         ToastService.showError(pluginApi.tr("main.error_delete_failed"));
       }
+    }
+
+    // Sync control
+    function reconnect() {
+      if (!pluginApi) return;
+      Logger.i("Todo", "Reconnecting to sync server");
+      root.loadingFromServer = true;
+      syncPoll.stop();
+      root.connectToServer();
     }
 
     // Export
