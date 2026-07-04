@@ -16,6 +16,8 @@ Item {
   readonly property bool syncEnabled: serverUrl.length > 0
   property bool loadingFromServer: false
   property bool serverReachable: false
+  /** One of "connected", "syncing", "offline", "disabled" */
+  property string syncStatus: "disabled"
 
   // Tiny fetch wrapper — async, fire-and-forget
   function api(method, path, body, cb) {
@@ -110,14 +112,18 @@ Item {
   function connectToServer() {
     if (!root.syncEnabled) {
       root.loadingFromServer = false;
+      root.serverReachable = false;
+      root.syncStatus = "disabled";
       loadFromLocalCache();
       return;
     }
     root.loadingFromServer = true;
+    root.syncStatus = "syncing";
     root.api("GET", "/api/export", null, function(err, data) {
       root.loadingFromServer = false;
       if (!err && data && data.todos && data.pages) {
         root.serverReachable = true;
+        root.syncStatus = "connected";
         // Map server IDs (String) to Number (plugin uses Number IDs)
         for (var i = 0; i < data.todos.length; i++) {
           data.todos[i].id = Number(data.todos[i].id);
@@ -140,6 +146,7 @@ Item {
       // Fall through to local cache if server unreachable
       Logger.w("Todo", "Sync server unreachable, using local cache");
       root.serverReachable = false;
+      root.syncStatus = "offline";
       loadFromLocalCache();
     });
   }
@@ -187,6 +194,18 @@ Item {
     onTriggered: pullFromServer()
   }
 
+  // Reconnection timer — keep trying when server is offline (every 30s)
+  Timer {
+    id: syncRetry
+    interval: 30000
+    repeat: true
+    running: root.syncEnabled && !root.serverReachable && !root.loadingFromServer
+    onTriggered: {
+      Logger.i("Todo", "Retrying sync connection...");
+      root.connectToServer();
+    }
+  }
+
   function saveTodos() {
     if (!pluginApi || !pluginApi.pluginSettings)
       return;
@@ -211,6 +230,7 @@ Item {
   // Simpler than per-op sync for v1 (avoids tracking which ops are new).
   function pushTodosToServer() {
     if (!root.syncEnabled || !root.serverReachable) return;
+    root.syncStatus = "syncing";
     var payload = rawTodos.map(function(t) {
       return {
         id: String(t.id),
@@ -225,22 +245,27 @@ Item {
     });
     api("POST", "/api/todos/batch", { todos: payload }, function(err) {
       if (err) Logger.w("Todo", "Failed to sync todos to server: " + err);
+      root.syncStatus = root.serverReachable ? "connected" : "offline";
     });
   }
 
   function pushPagesToServer() {
     if (!root.syncEnabled || !root.serverReachable) return;
+    root.syncStatus = "syncing";
     api("POST", "/api/pages/batch", { pages: rawPages }, function(err) {
       if (err) Logger.w("Todo", "Failed to sync pages to server: " + err);
+      root.syncStatus = root.serverReachable ? "connected" : "offline";
     });
   }
 
   // Pull full state from server and replace local state
   function pullFromServer() {
     if (!root.syncEnabled) return;
+    root.syncStatus = "syncing";
     api("GET", "/api/export", null, function(err, data) {
       if (err || !data) {
         root.serverReachable = false;
+        root.syncStatus = "offline";
         return;
       }
       root.serverReachable = true;
@@ -257,8 +282,10 @@ Item {
       // Compare by serialising — skip if identical
       var localTodosJson = JSON.stringify(rawTodos);
       var serverTodosJson = JSON.stringify(serverTodos);
-      if (localTodosJson === serverTodosJson)
+      if (localTodosJson === serverTodosJson) {
+        root.syncStatus = "connected";
         return;
+      }
 
       Logger.i("Todo", "Server state differs, pulling changes");
       rawTodos = serverTodos;
@@ -268,6 +295,7 @@ Item {
       pluginApi.pluginSettings.count = rawTodos.length;
       pluginApi.pluginSettings.completedCount = rawTodos.filter(t => t.completed).length;
       pluginApi.saveSettings();
+      root.syncStatus = "connected";
     });
   }
 

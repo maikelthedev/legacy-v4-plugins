@@ -1637,10 +1637,31 @@ Item {
             }
           }
 
-          // Spacer to provide bottom padding
+          // Sync status bar
           Item {
-            Layout.preferredHeight: Style.marginL * 2
             Layout.fillWidth: true
+            Layout.preferredHeight: Style.marginL + Style.marginS
+            visible: mainInstance?.syncEnabled ?? false
+
+            Rectangle {
+              anchors.fill: parent
+              color: mainInstance?.syncStatus === "connected" ? "transparent"
+                   : mainInstance?.syncStatus === "syncing" ? Qt.rgba(0.31, 0.58, 0.96, 0.08)
+                   : mainInstance?.syncStatus === "offline" ? Qt.rgba(0.96, 0.31, 0.31, 0.08)
+                   : "transparent"
+
+              NText {
+                anchors.centerIn: parent
+                text: mainInstance?.syncStatus === "connected" ? ""
+                    : mainInstance?.syncStatus === "syncing" ? "Syncing\u2026"
+                    : mainInstance?.syncStatus === "offline" ? "Server offline \u2014 retrying\u2026"
+                    : ""
+                font.pointSize: Style.fontSizeXS
+                color: mainInstance?.syncStatus === "syncing" ? Color.mPrimary
+                     : mainInstance?.syncStatus === "offline" ? Color.mError
+                     : "transparent"
+              }
+            }
           }
         }
       }
